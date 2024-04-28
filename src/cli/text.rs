@@ -1,3 +1,6 @@
+use crate::{process_text_generate, process_text_sign, process_text_verify, CmdExecutor};
+use tokio::fs;
+
 use super::{verify_file, verify_path};
 use clap::Parser;
 use std::{fmt, path::PathBuf, str::FromStr};
@@ -76,5 +79,53 @@ impl From<TextSignFormat> for &'static str {
 impl fmt::Display for TextSignFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", Into::<&str>::into(*self))
+    }
+}
+
+impl CmdExecutor for TextSignOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let signed = process_text_sign(&self.input, &self.key, self.format)?;
+        println!("{}", signed);
+        Ok(())
+    }
+}
+
+impl CmdExecutor for TextVerifyOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let verified = process_text_verify(&self.input, &self.key, &self.sig, self.format)?;
+        if verified {
+            println!("Signature verified");
+        } else {
+            println!("Signature not verified");
+        }
+        Ok(())
+    }
+}
+
+impl CmdExecutor for TextGenerateOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        let keys = process_text_generate(self.format)?;
+        match self.format {
+            crate::TextSignFormat::Blake3 => {
+                let name = self.output.join("blake3.key");
+                fs::write(name, &keys[0]).await?;
+            }
+            crate::TextSignFormat::Ed25519 => {
+                let name = &self.output;
+                fs::write(name.join("ed25519.sk"), &keys[0]).await?;
+                fs::write(name.join("ed25519.pk"), &keys[1]).await?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl CmdExecutor for TextSubCommand {
+    async fn execute(self) -> anyhow::Result<()> {
+        match self {
+            TextSubCommand::Sign(opts) => opts.execute().await,
+            TextSubCommand::Verify(opts) => opts.execute().await,
+            TextSubCommand::Generate(opts) => opts.execute().await,
+        }
     }
 }
