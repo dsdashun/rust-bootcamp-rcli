@@ -1,14 +1,16 @@
 // rcli csv -i input.csv -o output.json --header -d ','
 use clap::Parser;
 use rcli::{
-    process_csv, process_decode, process_encode, process_genpass, process_text_generate,
-    process_text_sign, process_text_verify,
+    process_csv, process_decode, process_encode, process_genpass, process_http_serve,
+    process_text_generate, process_text_sign, process_text_verify,
 };
-use rcli::{Base64SubCommand, Opts, SubCommand, TextSubCommand};
+use rcli::{Base64SubCommand, HttpSubCommand, Opts, SubCommand, TextSubCommand};
 use std::fs;
 use zxcvbn::zxcvbn;
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::init();
     let opts: Opts = Opts::parse();
     println!("{:?}", opts);
     match opts.cmd {
@@ -72,6 +74,11 @@ fn main() -> anyhow::Result<()> {
                         fs::write(name.join("ed25519.pk"), &keys[1])?;
                     }
                 }
+            }
+        },
+        SubCommand::Http(subcmd) => match subcmd {
+            HttpSubCommand::Serve(opts) => {
+                process_http_serve(opts.dir, opts.port).await?;
             }
         },
     }
